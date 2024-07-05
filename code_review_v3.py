@@ -210,6 +210,11 @@ if 'uploaded_file_path' not in st.session_state:
 if 'code_analysis_history' not in st.session_state:
     st.session_state.code_analysis_history = []
 
+# Carregar o histórico da conversa da linguagem selecionada na inicialização
+if menu in ["Python", "C++", "Java"]:
+    language = menu.lower()
+    st.session_state.history = load_history(language)
+
 # Fluxo de execução baseado no menu e submenu selecionados
 if menu in ["Python", "C++", "Java"]:
     language = menu.lower()
@@ -256,16 +261,13 @@ if menu in ["Python", "C++", "Java"]:
             # Mostrar histórico de análise de código
             if st.session_state.code_analysis_history:
                 st.subheader("Histórico de Análise de Código")
-                for idx, analysis in enumerate(st.session_state.code_analysis_history):
+                for idx, analysis in reversed(list(enumerate(st.session_state.code_analysis_history))):
                     st.write(f"**Código Analisado {idx + 1}:**")
                     st.text_area(f"Código {idx + 1}", analysis["codigo"], height=300)
                     st.write(f"**Resposta {idx + 1}:** {analysis['resposta']}")
 
             # Caixa de entrada para o usuário fazer perguntas ao modelo
             user_input = st.text_input("Digite sua pergunta:")
-
-            # Carregar histórico da conversa da linguagem selecionada
-            st.session_state.history = load_history(language)
 
             if user_input:
                 # Obter o primeiro arquivo de treino disponível
