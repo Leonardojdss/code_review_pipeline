@@ -135,7 +135,7 @@ def save_history(language, history):
 # Função para buscar pull requests do backend Flask
 def get_pull_requests():
     try:
-        response = requests.get("http://localhost:5000/get_pull_requests")
+        response = requests.get("http://localhost:8000/get_pull_requests")
         response.raise_for_status()  # Levanta uma exceção para códigos de status HTTP de erro
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -365,5 +365,5 @@ def get_pull_requests():
     return jsonify(pull_requests)
 
 # Iniciar o servidor Flask em uma thread separada
-flask_thread = Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False))
+flask_thread = Thread(target=lambda: app.run(host='0.0.0.0', port=8000, debug=True, use_reloader=False))
 flask_thread.start()
