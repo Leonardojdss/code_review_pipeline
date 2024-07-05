@@ -232,24 +232,27 @@ if menu in ["Python", "C++", "Java"]:
         st.header(f"{language.upper()} - Fazer Perguntas ao Modelo")
 
         # Carregar o banco de dados e a cadeia LLM, se ainda não estiverem carregados
-        if st.session_state.uploaded_file_path and not st.session_state.llm_chain:
-            st.session_state.llm_chain = setup_llm_chain(language)
+        if st.session_state.uploaded_file_path:
+            if not st.session_state.llm_chain:
+                st.session_state.llm_chain = setup_llm_chain(language)
 
-        # Caixa de entrada para o usuário fazer perguntas ao modelo
-        user_input = st.text_input("Digite sua pergunta:")
-        
-        # Carregar histórico da conversa da linguagem selecionada
-        st.session_state.history = load_history(language)
+            # Caixa de entrada para o usuário fazer perguntas ao modelo
+            user_input = st.text_input("Digite sua pergunta:")
 
-        if user_input:
-            response = generate_response(user_input, st.session_state.llm_chain, training_files[os.path.basename(st.session_state.uploaded_file_path)])
-            st.session_state.history.append({"pergunta": user_input, "resposta": response})
-            save_history(language, st.session_state.history)
+            # Carregar histórico da conversa da linguagem selecionada
+            st.session_state.history = load_history(language)
 
-        # Mostrar histórico da conversa
-        for idx, chat in enumerate(st.session_state.history):
-            st.write(f"**Pergunta {idx + 1}:** {chat['pergunta']}")
-            st.write(f"**Resposta {idx + 1}:** {chat['resposta']}")
+            if user_input:
+                response = generate_response(user_input, st.session_state.llm_chain, training_files[os.path.basename(st.session_state.uploaded_file_path)])
+                st.session_state.history.append({"pergunta": user_input, "resposta": response})
+                save_history(language, st.session_state.history)
+
+            # Mostrar histórico da conversa
+            for idx, chat in enumerate(st.session_state.history):
+                st.write(f"**Pergunta {idx + 1}:** {chat['pergunta']}")
+                st.write(f"**Resposta {idx + 1}:** {chat['resposta']}")
+        else:
+            st.warning("Nenhum arquivo de treino carregado. Por favor, carregue um arquivo no menu 'Treinar Novo Arquivo'.")
 
     elif submenu == "Analisar Pull Request do Azure DevOps":
         st.header(f"{language.upper()} - Analisar Pull Request do Azure DevOps")
@@ -298,9 +301,10 @@ def webhook():
             if response.status_code == 200:
                 changes = response.json()
                 pull_request_info = {
-                    'titulo': titulo,
-                    'descricao': descricao,
-                    'autor': autor,
+                    'title': titulo,
+                    'description': descricao,
+                    'created_by': autor,
+                    'changes_url': changes_url,
                     'alteracoes': []
                 }
                 
