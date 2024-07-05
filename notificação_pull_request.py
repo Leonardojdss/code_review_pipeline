@@ -15,14 +15,10 @@ PERSONAL_ACCESS_TOKEN = 'h65ilsix3zkb5tzab34dxehf6c2vrappd346pxzqiqay2kdmotva'
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
-    app.logger.info(f"Recebido webhook: {data}")
-    
     if 'eventType' in data and data['eventType'] == 'git.pullrequest.created':
         # Verificar se o pull request é do repositório específico
         repo_name = data['resource']['repository']['name']
         if repo_name == REPOSITORIO_ESPECIFICO:
-            app.logger.info(f"Pull request do repositório: {repo_name}")
-
             # Obter informações do pull request
             titulo = data['resource']['title']
             descricao = data['resource']['description']
@@ -31,14 +27,8 @@ def webhook():
             # Obter detalhes do pull request
             pull_request_url = data['resource']['url']
             changes_url = f"{pull_request_url}/changes"
-            app.logger.info(f"URL das mudanças do pull request: {changes_url}")
-
-            # Configurar cabeçalhos de autenticação
-            headers = {
-                'Authorization': f'Bearer {PERSONAL_ACCESS_TOKEN}'
-            }
             
-            response = requests.get(changes_url, headers=headers)
+            response = requests.get(changes_url, auth=('', PERSONAL_ACCESS_TOKEN))
             if response.status_code == 200:
                 changes = response.json()
                 pull_request_info = {
@@ -65,11 +55,10 @@ def webhook():
                 
                 # Adicionar informações do pull request à lista
                 pull_requests.append(pull_request_info)
-                app.logger.info(f"Pull request adicionado: {pull_request_info}")
             else:
-                app.logger.error(f"Erro ao obter as alterações de código: {response.status_code}")
+                print('Erro ao obter as alterações de código:', response.status_code)
         else:
-            app.logger.info(f"Pull request ignorado. Repositório: {repo_name}")
+            print(f'Pull request ignorado. Repositório: {repo_name}')
     
     return jsonify({'status': 'received'}), 200
 
@@ -78,4 +67,4 @@ def get_pull_requests():
     return jsonify(pull_requests)
 
 if __name__ == '__main__':
-    app.run(port=8000, debug=True)
+    app.run(port=5000, debug=True)
