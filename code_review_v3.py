@@ -129,7 +129,7 @@ def load_history(language):
 # Função para salvar o histórico da conversa da linguagem específica
 def save_history(language, history):
     history_file = f"chat_history_{language}.json"
-    with open(history_file, "w") as file):
+    with open(history_file, "w") as file:
         json.dump(history, file)
 
 # Função para buscar pull requests do backend Flask
@@ -207,6 +207,8 @@ if 'history' not in st.session_state:
     st.session_state.history = []
 if 'uploaded_file_path' not in st.session_state:
     st.session_state.uploaded_file_path = None
+if 'code_analysis_history' not in st.session_state:
+    st.session_state.code_analysis_history = []
 
 # Fluxo de execução baseado no menu e submenu selecionados
 if menu in ["Python", "C++", "Java"]:
@@ -233,9 +235,31 @@ if menu in ["Python", "C++", "Java"]:
 
         # Verifica se há arquivos de treino carregados
         if training_files:
-            # Configurar a cadeia LLM se ainda não estiver configurada
+            # Configura a cadeia LLM se ainda não estiver configurada
             if not st.session_state.llm_chain:
                 st.session_state.llm_chain = setup_llm_chain(language)
+
+            # Adicionar carregador de arquivo para análise de código
+            st.subheader("Analisar Arquivo TXT")
+            uploaded_txt_file = st.file_uploader("Faça upload de um arquivo de código (TXT)", type=["txt"])
+
+            if uploaded_txt_file:
+                txt_content = uploaded_txt_file.getvalue().decode("utf-8")
+                st.text_area("Conteúdo do Arquivo:", txt_content, height=300)
+
+                if st.button("Analisar Código"):
+                    first_training_file = next(iter(training_files.values()))
+                    response = generate_response(txt_content, st.session_state.llm_chain, first_training_file)
+                    st.session_state.code_analysis_history.append({"codigo": txt_content, "resposta": response})
+                    st.write(f"**Avaliação do Código:** {response}")
+
+            # Mostrar histórico de análise de código
+            if st.session_state.code_analysis_history:
+                st.subheader("Histórico de Análise de Código")
+                for idx, analysis in enumerate(st.session_state.code_analysis_history):
+                    st.write(f"**Código Analisado {idx + 1}:**")
+                    st.text_area(f"Código {idx + 1}", analysis["codigo"], height=300)
+                    st.write(f"**Resposta {idx + 1}:** {analysis['resposta']}")
 
             # Caixa de entrada para o usuário fazer perguntas ao modelo
             user_input = st.text_input("Digite sua pergunta:")
@@ -250,23 +274,11 @@ if menu in ["Python", "C++", "Java"]:
                 st.session_state.history.append({"pergunta": user_input, "resposta": response})
                 save_history(language, st.session_state.history)
 
-            # Mostrar histórico da conversa
-            for idx, chat in enumerate(st.session_state.history):
+            # Mostrar histórico da conversa em ordem decrescente
+            st.subheader("Histórico da Conversa")
+            for idx, chat in reversed(list(enumerate(st.session_state.history))):
                 st.write(f"**Pergunta {idx + 1}:** {chat['pergunta']}")
                 st.write(f"**Resposta {idx + 1}:** {chat['resposta']}")
-
-            # Adicionar carregador de arquivo para análise de código
-            st.subheader("Analisar Arquivo TXT")
-            uploaded_txt_file = st.file_uploader("Faça upload de um arquivo de código (TXT)", type=["txt"])
-
-            if uploaded_txt_file:
-                txt_content = uploaded_txt_file.getvalue().decode("utf-8")
-                st.text_area("Conteúdo do Arquivo:", txt_content, height=300)
-
-                if st.button("Analisar Código"):
-                    first_training_file = next(iter(training_files.values()))
-                    response = generate_response(txt_content, st.session_state.llm_chain, first_training_file)
-                    st.write(f"**Avaliação do Código:** {response}")
 
         else:
             st.warning("Nenhum arquivo de treino carregado. Por favor, carregue um arquivo no menu 'Treinar Novo Arquivo'.")
