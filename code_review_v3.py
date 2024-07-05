@@ -135,7 +135,7 @@ def save_history(language, history):
 # Função para buscar pull requests do backend Flask
 def get_pull_requests():
     try:
-        response = requests.get("http://localhost:5000/get_pull_requests")
+        response = requests.get("http://localhost:8000/get_pull_requests")
         response.raise_for_status()  # Levanta uma exceção para códigos de status HTTP de erro
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -231,8 +231,9 @@ if menu in ["Python", "C++", "Java"]:
     elif submenu == "Fazer Perguntas ao Modelo":
         st.header(f"{language.upper()} - Fazer Perguntas ao Modelo")
 
-        # Carregar o banco de dados e a cadeia LLM, se ainda não estiverem carregados
-        if st.session_state.uploaded_file_path:
+        # Verifica se há arquivos de treino carregados
+        if training_files:
+            # Configurar a cadeia LLM se ainda não estiver configurada
             if not st.session_state.llm_chain:
                 st.session_state.llm_chain = setup_llm_chain(language)
 
@@ -243,7 +244,9 @@ if menu in ["Python", "C++", "Java"]:
             st.session_state.history = load_history(language)
 
             if user_input:
-                response = generate_response(user_input, st.session_state.llm_chain, training_files[os.path.basename(st.session_state.uploaded_file_path)])
+                # Obter o primeiro arquivo de treino disponível
+                first_training_file = next(iter(training_files.values()))
+                response = generate_response(user_input, st.session_state.llm_chain, first_training_file)
                 st.session_state.history.append({"pergunta": user_input, "resposta": response})
                 save_history(language, st.session_state.history)
 
@@ -270,7 +273,9 @@ if menu in ["Python", "C++", "Java"]:
                 st.code(code_content, language)
 
                 if st.button(f"Analisar Pull Request #{pr['id']}"):
-                    response = generate_response(code_content, st.session_state.llm_chain, training_files[os.path.basename(st.session_state.uploaded_file_path)])
+                    # Obter o primeiro arquivo de treino disponível
+                    first_training_file = next(iter(training_files.values()))
+                    response = generate_response(code_content, st.session_state.llm_chain, first_training_file)
                     st.write(f"**Avaliação:** {response}")
         else:
             st.write("Nenhum pull request encontrado.")
@@ -334,5 +339,5 @@ def get_pull_requests():
     return jsonify(pull_requests)
 
 # Iniciar o servidor Flask em uma thread separada
-flask_thread = Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False))
+flask_thread = Thread(target=lambda: app.run(host='0.0.0.0', port=8000, debug=True, use_reloader=False))
 flask_thread.start()
