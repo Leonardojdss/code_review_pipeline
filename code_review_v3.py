@@ -129,13 +129,13 @@ def load_history(language):
 # Função para salvar o histórico da conversa da linguagem específica
 def save_history(language, history):
     history_file = f"chat_history_{language}.json"
-    with open(history_file, "w") as file:
+    with open(history_file, "w") as file):
         json.dump(history, file)
 
 # Função para buscar pull requests do backend Flask
 def get_pull_requests():
     try:
-        response = requests.get("http://localhost:8000/get_pull_requests")
+        response = requests.get("http://localhost:5000/get_pull_requests")
         response.raise_for_status()  # Levanta uma exceção para códigos de status HTTP de erro
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -254,6 +254,20 @@ if menu in ["Python", "C++", "Java"]:
             for idx, chat in enumerate(st.session_state.history):
                 st.write(f"**Pergunta {idx + 1}:** {chat['pergunta']}")
                 st.write(f"**Resposta {idx + 1}:** {chat['resposta']}")
+
+            # Adicionar carregador de arquivo para análise de código
+            st.subheader("Analisar Arquivo TXT")
+            uploaded_txt_file = st.file_uploader("Faça upload de um arquivo de código (TXT)", type=["txt"])
+
+            if uploaded_txt_file:
+                txt_content = uploaded_txt_file.getvalue().decode("utf-8")
+                st.text_area("Conteúdo do Arquivo:", txt_content, height=300)
+
+                if st.button("Analisar Código"):
+                    first_training_file = next(iter(training_files.values()))
+                    response = generate_response(txt_content, st.session_state.llm_chain, first_training_file)
+                    st.write(f"**Avaliação do Código:** {response}")
+
         else:
             st.warning("Nenhum arquivo de treino carregado. Por favor, carregue um arquivo no menu 'Treinar Novo Arquivo'.")
 
@@ -339,5 +353,5 @@ def get_pull_requests():
     return jsonify(pull_requests)
 
 # Iniciar o servidor Flask em uma thread separada
-flask_thread = Thread(target=lambda: app.run(host='0.0.0.0', port=8000, debug=True, use_reloader=False))
+flask_thread = Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False))
 flask_thread.start()
