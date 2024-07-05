@@ -34,20 +34,27 @@ app = Flask(__name__)
 def webhook():
     data = request.json
     if 'eventType' in data and data['eventType'] == 'git.pullrequest.created':
+        # Verificar se o pull request é do repositório específico
         repo_name = data['resource']['repository']['name']
         if repo_name == REPOSITORIO_ESPECIFICO:
+            # Obter informações do pull request
             titulo = data['resource']['title']
             descricao = data['resource']['description']
             autor = data['resource']['createdBy']['displayName']
             
+            # Obter detalhes do pull request
             pull_request_url = data['resource']['url']
             changes_url = f"{pull_request_url}/changes"
+
+            st.write(f"Pull Request URL: {pull_request_url}")
+            st.write(f"Changes URL: {changes_url}")
             
+            # Configurar a autenticação básica com o token de acesso pessoal (PAT)
             headers = {
                 'Authorization': f'Basic {PERSONAL_ACCESS_TOKEN}',
                 'Content-Type': 'application/json'
             }
-            
+
             response = requests.get(changes_url, headers=headers)
             if response.status_code == 200:
                 changes = response.json()
@@ -58,12 +65,14 @@ def webhook():
                     'alteracoes': []
                 }
                 
+                # Iterar sobre as alterações de código
                 for change in changes['value']:
                     file_path = change['item']['path']
                     change_type = change['changeType']
                     lines_added = change.get('linesAdded', 0)
                     lines_deleted = change.get('linesDeleted', 0)
                     
+                    # Adicionar informações da alteração à lista de alterações do pull request
                     pull_request_info['alteracoes'].append({
                         'arquivo': file_path,
                         'tipo': change_type,
@@ -71,11 +80,13 @@ def webhook():
                         'linhas_deletadas': lines_deleted
                     })
                 
+                # Adicionar informações do pull request à lista
                 pull_requests.append(pull_request_info)
             else:
-                print('Erro ao obter as alterações de código:', response.status_code)
+                st.write(f'Erro ao obter as alterações de código: {response.status_code}')
+                st.write(f'Resposta do servidor: {response.text}')
         else:
-            print(f'Pull request ignorado. Repositório: {repo_name}')
+            st.write(f'Pull request ignorado. Repositório: {repo_name}')
     
     return jsonify({'status': 'received'}), 200
 
