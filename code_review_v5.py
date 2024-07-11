@@ -23,8 +23,8 @@ linguagem_1 = "python"
 linguagem_2 = "c++"
 linguagem_3 = "java"
 PERSONAL_ACCESS_TOKEN = "COLO_AQUI"
-REPOSITORIO_ESPECIFICO = "nome_do_repositorio_especifico"
-REPOSITORIO_URL = "https://dev.azure.com/seu_organizacao/nome_do_projeto/_git/nome_do_repositorio"
+REPOSITORIO_ESPECIFICO = "Projeto_code_review"
+REPOSITORIO_URL = "https://dev.azure.com/leonardojdss01/Projeto_code_review/_git/Projeto_code_review"
 pull_requests = []
 
 # Instrução de como a IA deve se comportar
