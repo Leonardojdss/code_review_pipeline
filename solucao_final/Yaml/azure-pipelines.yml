@@ -1,0 +1,31 @@
+trigger:
+- master
+
+pr:
+  branches:
+    include:
+    - '*'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.x'
+    addToPath: true
+
+- script: |
+    python -m pip install --upgrade pip
+    pip install requests
+    pip install json
+    pip install openai==0.28
+  displayName: 'Install dependencies'
+
+- script: |
+    python script_pipeline/analyze_code.py
+  displayName: 'Run AI Code Analysis'
+
+  env:
+    ACCESS_TOKEN: $(SYSTEM_ACCESSTOKEN)
+    OPENAI_API_KEY: $(OPENAI_API_KEY)
