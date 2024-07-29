@@ -53,6 +53,21 @@ def get_commit_content(commit_id):
     print("Conteúdo do commit obtido.")
     return result.stdout
 
+def get_all_commits(pr_id):
+    print(f"Obtendo todos os commits da PR {pr_id}...")
+    url = f"https://dev.azure.com/leonardojdss01/{PROJECT}/_apis/git/repositories/{REPO_ID}/pullRequests/{pr_id}/commits?api-version=7.1-preview.1"
+    response = requests.get(url, auth=("leonardojdss01", ACCESS_TOKEN), headers={'Content-Type': 'application/json'})
+
+    if response.status_code == 200:
+        commits = response.json()
+        commit_ids = [commit['commitId'] for commit in commits['value']]
+        print(f"Commits encontrados: {commit_ids}")
+        return commit_ids
+    else:
+        print(f"Falha ao recuperar commits: {response.status_code}")
+        print(response.text)
+        return []
+
 def analyze_code_with_gpt(file_contents):
     try:
         print("Analisando código com GPT...")
@@ -65,7 +80,7 @@ def analyze_code_with_gpt(file_contents):
 
         response = openai.ChatCompletion.create(
             deployment_id=AZURE_OPENAI_DEPLOYMENT_NAME,
-            model="gpt-4o",
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": """
                     
@@ -89,7 +104,7 @@ def analyze_code_with_gpt(file_contents):
                         Se Não Aprovar: Use a frase: "Eu não aprovaria esta pull request por conta dos problemas identificados acima."\n
                     \n
                     **3.Pontuação:** Sempre pontue o código de 0 a 10, onde 0 é muito ruim e 10 é excelente.\n
-                        Cada Problemas identificado deve ser subtraido 1 pontos
+                        Cada Problema identificado deve subtrair 1 ponto
 
                     Lembre-se de fornecer uma análise detalhada e objetiva."""},
                 {"role": "user", "content": prompt}
@@ -144,17 +159,24 @@ if __name__ == "__main__":
     else:
         try:
             clone_repo()
-            file_contents = get_commit_content(SOURCE_COMMIT_ID)
-            print(f"Conteúdo do commit:\n{file_contents}")  # Adicionado para verificar o conteúdo do commit
-            if file_contents:
-                feedback = analyze_code_with_gpt(file_contents)
-                print(f"Feedback gerado:\n{feedback}")  # Adicionado para verificar o feedback gerado
-                if feedback:
-                    post_feedback_comment(PR_ID, feedback)
-                else:
-                    post_feedback_comment(PR_ID, "Não foi possível trazer uma resposta da IA.")
+            commit_ids = get_all_commits(PR_ID)
+            if commit_ids:
+                overall_feedback = ""
+                for commit_id in commit_ids:
+                    file_contents = get_commit_content(commit_id)
+                    print(f"Conteúdo do commit {commit_id}:\n{file_contents}")  # Adicionado para verificar o conteúdo do commit
+                    if file_contents:
+                        feedback = analyze_code_with_gpt(file_contents)
+                        print(f"Feedback gerado para o commit {commit_id}:\n{feedback}")  # Adicionado para verificar o feedback gerado
+                        if feedback:
+                            overall_feedback += f"Commit {commit_id}:\n{feedback}\n\n"
+                        else:
+                            overall_feedback += f"Commit {commit_id}:\nNão foi possível trazer uma resposta da IA.\n\n"
+                    else:
+                        print(f"Conteúdo do commit {commit_id} não encontrado.")
+                post_feedback_comment(PR_ID, overall_feedback)
             else:
-                print(f"Conteúdo do commit {SOURCE_COMMIT_ID} não encontrado.")
+                print(f"Nenhum commit encontrado para a PR {PR_ID}.")
         except Exception as e:
             print(f"Erro no processamento da PR {PR_ID}: {e}")
             post_feedback_comment(PR_ID, "Não foi possível trazer uma resposta da IA devido a um erro.")
