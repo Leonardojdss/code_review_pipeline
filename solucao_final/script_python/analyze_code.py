@@ -5,8 +5,10 @@ import subprocess
 import shutil
 import time
 
-# Configurações da OpenAI
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+# Configurações da Azure OpenAI
+AZURE_OPENAI_API_KEY = os.getenv('AZURE_OPENAI_API_KEY')
+AZURE_OPENAI_ENDPOINT = os.getenv('AZURE_OPENAI_ENDPOINT')
+AZURE_OPENAI_DEPLOYMENT_NAME = os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME')
 
 # Configurações do Azure DevOps
 DEVOPS_ORG_URL = os.getenv('SYSTEM_COLLECTIONURI')
@@ -24,7 +26,9 @@ required_vars = {
     "SYSTEM_PULLREQUEST_PULLREQUESTID": PR_ID,
     "SYSTEM_PULLREQUEST_SOURCECOMMITID": SOURCE_COMMIT_ID,
     "ACCESS_TOKEN": ACCESS_TOKEN,
-    "OPENAI_API_KEY": OPENAI_API_KEY,
+    "AZURE_OPENAI_API_KEY": AZURE_OPENAI_API_KEY,
+    "AZURE_OPENAI_ENDPOINT": AZURE_OPENAI_ENDPOINT,
+    "AZURE_OPENAI_DEPLOYMENT_NAME": AZURE_OPENAI_DEPLOYMENT_NAME,
 }
 
 for var_name, value in required_vars.items():
@@ -52,22 +56,47 @@ def get_commit_content(commit_id):
 def analyze_code_with_gpt(file_contents):
     try:
         print("Analisando código com GPT...")
-        openai.api_key = OPENAI_API_KEY
-        prompt = f"Revise o seguinte código e forneça feedback detalhado:\n{file_contents}"
+        openai.api_type = "azure"
+        openai.api_base = AZURE_OPENAI_ENDPOINT
+        openai.api_version = "2023-05-15"  # Verifique a versão da API
+        openai.api_key = AZURE_OPENAI_API_KEY
+        
+        prompt = f"""Revise o seguinte código e forneça feedback detalhado, considere todas as instruções inseridas na mensagem do "system", "content": e Considere as linhas marcadas como '- ' e '+ ' para identificar as mudanças feitas:\n\n{file_contents}"""
 
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "system", "content": """Você é um assistente que fornece feedback de revisão de código
-                        
-                        A partir das boas práticas de revisão de código, você deve dar um feedback sobre o código desenvolvido. 
-                        Além do feedback, você deve falar se aprovaria o pull request ou não. 
-                        Se não aprovar, é necessário que você diga o porquê e sugira melhorias.
-                        
-                        Sempre no final de cada feedback que você der, precisa falar de forma destacada, se aprovaria a pull request ou não"""
-                        }, {"role": "user", "content": prompt}],
+            deployment_id=AZURE_OPENAI_DEPLOYMENT_NAME,
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": """
+                    
+                    Você está revisando uma pull request de um projeto que utiliza boas práticas de desenvolvimento.\n
+                    \n
+                    **Tarefas**:\n
+                    \n
+                    **1.Feedback**: Com base nas boas práticas de revisão de código, forneça um feedback detalhado sobre o código desenvolvido. Estruture seu feedback nas seguintes seções:\n
+                    \n
+                    **1.1 Pontos Fortes**: Destaque os aspectos positivos do código, mencionando especificamente as partes relevantes.\n
+                        Inclua exemplos específicos do código como pontos fortes.\n
+                    **1.2 Problemas Identificados**: Liste e explique os problemas encontrados, referenciando as linhas de código problemáticas.\n
+                        Se houver qualquer problema, a pull request não pode ser aprovada, então seu feedback deve indicar reprovação.\n
+                    Inclua exemplos específicos do código como problemas.\n
+                    **1.3 Sugestões de Melhoria:** Sugira melhorias específicas para cada problema identificado, indicando como o código pode ser ajustado.\n
+                        Inclua exemplos de código demonstrando as melhorias sugeridas.\n
+                    \n
+                    **2.Aprovação da Pull Request:** Avalie se você aprovaria a pull request ou não.\n
+                        Se Aprovar: Use a frase: "Eu aprovaria esta pull request, pois minha revisão não identificou problemas."\n
+                            Se houver qualquer problema, a pull request não pode ser aprovada, então seu feedback deve indicar reprovação.\n 
+                        Se Não Aprovar: Use a frase: "Eu não aprovaria esta pull request por conta dos problemas identificados acima."\n
+                    \n
+                    **3.Pontuação:** Sempre pontue o código de 0 a 10, onde 0 é muito ruim e 10 é excelente.\n
+                        Cada Problemas identificado deve ser subtraido 1 pontos
+
+                    Lembre-se de fornecer uma análise detalhada e objetiva."""},
+                {"role": "user", "content": prompt}
+            ],
             max_tokens=1000
         )
-        
+
         feedback = response.choices[0].message['content']
         print("Análise de código concluída.")
         return feedback
@@ -75,30 +104,35 @@ def analyze_code_with_gpt(file_contents):
         print(f"Erro ao analisar o código com GPT: {e}")
         return None
 
-def post_feedback_comment(pr_id, feedback, retries=5, wait=5):
+def post_feedback_comment(pr_id, feedback, retries=10, wait=2):
     url = f"https://dev.azure.com/leonardojdss01/{PROJECT}/_apis/git/repositories/{REPO_ID}/pullRequests/{pr_id}/threads?api-version=6.0"
-    
-    curl_command = [
-        "curl", "-u", f"leonardojdss01:{ACCESS_TOKEN}",
-        "-X", "POST",
-        "-H", "Content-Type: application/json",
-        "-d", f'{{"comments": [{{"parentCommentId": 0, "content": "{feedback}", "commentType": 1}}], "status": 1}}',
-        url
-    ]
+    headers = {
+        "Content-Type": "application/json"
+    }
+    auth = ("leonardojdss01", ACCESS_TOKEN)
+    data = {
+        "comments": [
+            {
+                "parentCommentId": 0,
+                "content": feedback,
+                "commentType": 1
+            }
+        ],
+        "status": 1
+    }
     
     attempt = 0
     while attempt < retries:
-        result = subprocess.run(curl_command, capture_output=True, text=True)
+        response = requests.post(url, json=data, headers=headers, auth=auth)
         
-        if result.returncode == 0:
+        if response.status_code == 200:
             print(f"Comentário de feedback postado com sucesso na PR {pr_id}.")
             return
         else:
             print(f"Erro ao postar comentário de feedback na PR {pr_id}, tentativa {attempt + 1} de {retries}:")
             print(f"URL: {url}")
-            print(f"Status Code: {result.returncode}")
-            print(f"Response: {result.stdout}")
-            print(f"Error: {result.stderr}")
+            print(f"Status Code: {response.status_code}")
+            print(f"Response: {response.text}")
             attempt += 1
             time.sleep(wait)
 
@@ -111,8 +145,10 @@ if __name__ == "__main__":
         try:
             clone_repo()
             file_contents = get_commit_content(SOURCE_COMMIT_ID)
+            print(f"Conteúdo do commit:\n{file_contents}")  # Adicionado para verificar o conteúdo do commit
             if file_contents:
                 feedback = analyze_code_with_gpt(file_contents)
+                print(f"Feedback gerado:\n{feedback}")  # Adicionado para verificar o feedback gerado
                 if feedback:
                     post_feedback_comment(PR_ID, feedback)
                 else:
